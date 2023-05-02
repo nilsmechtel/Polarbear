@@ -10,6 +10,7 @@ from sklearn.linear_model import RidgeCV
 import scipy
 from scipy.io import mmread
 import math
+import neptune.new as neptune
 
 """
 train_model.py builds separate autoencoders for each domain, and then connects two bottle-neck layers with translator layer. 
@@ -368,10 +369,48 @@ class TranslateAE:
         my_epochs_max[4] = 100
         saver = tf.train.Saver()
         sep_train_index = 1
+
+        ## neptune logger
+        params = {
+            # 'train_test_split': train_test_split,
+            'dispersion': self.dispersion,
+            'nlayer': self.nlayer,
+            'learning_rate_y': self.learning_rate_y,
+            'learning_rate_x': self.learning_rate_x,
+            'learning_rate_xy': self.learning_rate_xy,
+            'learning_rate_yx': self.learning_rate_yx,
+            'dropout_rate': self.dropout_rate,
+            'embed_dim_x': self.embed_dim_x,
+            'embed_dim_y': self.embed_dim_y,
+            'batch_size': batch_size,
+            'trans_ver': self.trans_ver,
+            'patience': patience,
+            'nepoch_warmup_x': nepoch_warmup_x,
+            'nepoch_warmup_y': nepoch_warmup_y,
+            'nepoch_klstart_x': nepoch_klstart_x,
+            'nepoch_klstart_y': nepoch_klstart_y,
+            'kl_weight': self.kl_weight,
+            'hidden_frac': self.hidden_frac,
+        }
+        project = 'nilsmechtel/cross-modality-translation'
+        neptune_run = neptune.init(
+            project=project,
+            api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI4YzlkMjIwYS1mYjg1LTQxODgtOWFmZS01ZTcyNTk4YmM0ZTYifQ==",
+            capture_hardware_metrics=True,
+            capture_stderr=True,
+            capture_stdout=True,
+        )
+        print('Neptune logger initialized! Project: ' + project)
+        neptune_run["parameters"] = params
+        neptune_run['sys/name'] = 'Polarbear'
+
         for iter in range(1, 2000):
             print('iter '+str(iter))
             sys.stdout.flush()
+
+            ## -> val_reconstr_y_loss (ATAC)
             if sep_train_index == 1:
+                neptune_run['train/current_network'].log('scATAC VAE')
                 if n_iter_step1 < nepoch_klstart_y:
                     kl_weight_y_update = 0
                 else:
@@ -397,8 +436,11 @@ class TranslateAE:
                 loss_val_check = np.nanmean(np.array(loss_reconstruct_y_val))
                 val_reconstr_y_loss_list.append(loss_val_check)
                 #val_kl_y_loss_list.append(np.nanmean(np.array(loss_kl_y_val)))
+                neptune_run['train/reconstruct_ATAC_loss'].log(loss_val_check)
                 
+            ## -> val_reconstr_x_loss (RNA)
             if sep_train_index == 2:
+                neptune_run['train/current_network'].log('scRNA VAE')
                 if n_iter_step2 < nepoch_klstart_x:
                     kl_weight_x_update = 0
                 else:
@@ -424,10 +466,14 @@ class TranslateAE:
                 loss_val_check = np.nanmean(np.array(loss_reconstruct_x_val))
                 val_reconstr_x_loss_list.append(loss_val_check)
                 #val_kl_x_loss_list.append(np.nanmean(np.array(loss_kl_x_val)))
+                neptune_run['train/reconstruct_RNA_loss'].log(loss_val_check)
 
                 if np.isnan(loss_reconstruct_x_val).any():
                     break
+
+            ## -> val_translat_x_loss (ATAC->RNA)
             if sep_train_index == 3:
+                neptune_run['train/current_network'].log('ATAC->RNA translator')
                 iter_list3.append(iter)
                 iter_list = iter_list3
                 for batch_id in range(0, data_x_co.shape[0]//batch_size +1):
@@ -448,9 +494,11 @@ class TranslateAE:
                 
                 loss_val_check = np.nanmean(np.array(loss_translator_x_val))
                 val_translat_x_loss_list.append(loss_val_check)
+                neptune_run['train/translate_to_RNA_loss'].log(loss_val_check)
 
-
+            ## -> val_translat_y_loss (RNA->ATAC)
             if sep_train_index == 4:
+                neptune_run['train/current_network'].log('RNA->ATAC translator')
                 iter_list4.append(iter)
                 iter_list = iter_list4
                 for batch_id in range(0, data_x_co.shape[0]//batch_size +1):
@@ -471,8 +519,8 @@ class TranslateAE:
                 
                 loss_val_check = np.nanmean(np.array(loss_translator_y_val))
                 val_translat_y_loss_list.append(loss_val_check)
+                neptune_run['train/translate_to_ATAC_loss'].log(loss_val_check)
 
-            
             if ((iter + 1) % 1 == 0): # check every epoch
                 print('loss_val_check: '+str(loss_val_check))
                 loss_val_check_list.append(loss_val_check)
@@ -480,6 +528,7 @@ class TranslateAE:
                     loss_val_check_best
                 except NameError:
                     loss_val_check_best = loss_val_check
+                ## save model checkpoint
                 if loss_val_check < loss_val_check_best:
                     #save_sess = self.sess
                     saver.save(self.sess, output_model+'_step'+str(sep_train_index)+'/mymodel')
@@ -503,6 +552,7 @@ class TranslateAE:
                         if sep_train_index > 4:
                             break
 
+        neptune_run.stop()                  
         return iter_list1, iter_list2, iter_list3, iter_list4, val_reconstr_y_loss_list, val_kl_y_loss_list, val_reconstr_x_loss_list, val_kl_x_loss_list, val_translat_y_loss_list, val_translat_x_loss_list
 
 

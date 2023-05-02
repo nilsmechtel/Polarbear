@@ -280,8 +280,8 @@ def train_polarbear_model(outdir, sim_url, train_test_split, path_x, path_y, pat
     ## save the list of peaks
     chr_annot.iloc[chr_list_range].to_csv(sim_url+'_peaks.txt', index=False, sep=':', header=None)
 
-    data_rna, data_rna_batch = load_rna_file_sparse(path_x)
-    data_atac, data_atac_batch = load_atac_file_sparse(path_y, chr_list_range)
+    data_rna, data_rna_batch = load_rna_file_sparse(path_x)  # -> load scRNA mtx file to sparse matrix, binarize the data; load batch info
+    data_atac, data_atac_batch = load_atac_file_sparse(path_y, chr_list_range)  # -> load scATAC mtx file to sparse matrix, binarize the data; load batch info
     
     ## ======================================
     ## define train, validation and test
