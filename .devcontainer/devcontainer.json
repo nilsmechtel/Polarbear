@@ -1,0 +1,37 @@
+// For format details, see https://aka.ms/devcontainer.json
+// Tutorials available at https://code.visualstudio.com/remote/advancedcontainers/overview
+{
+	"name": "Polarbear",
+
+	"image": "tensorflow:polarbear",
+
+	// Run container as own user (USER_ID=1009) with root permissions (GROUP_ID=1010)
+	"remoteUser": "1009:1010",
+
+	// Specify container name
+	"runArgs": ["--name", "devcontainer_polarbear"],
+
+	// Configure tool-specific properties, in this case the vscode R extension.
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance"
+			]
+		}
+	},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Mount workspace to /home directory instead of the default /workspaces directory
+	"workspaceMount": "source=${localWorkspaceFolder}/..,target=/home,type=bind",
+	"workspaceFolder": "/home",
+
+	// Copy users and groups to container
+	"mounts": [
+		"source=/etc/passwd,target=/etc/passwd,type=bind,consistency=cached",
+		"source=/etc/group,target=/etc/group,type=bind,consistency=cached"
+	]
+}
+
