@@ -3,15 +3,43 @@
 {
 	"name": "Polarbear",
 
-	"image": "tensorflow:polarbear",
+	// Specify container name and pass GPUs
+	"runArgs": [
+		"--name", "devcontainer_polarbear",
+		"--gpus", "all"
+	],
 
-	// Run container as own user (USER_ID=1009) with root permissions (GROUP_ID=1010)
+	"build": {
+		// Specify base image in Dockerfile
+		"dockerfile": "Dockerfile",
+		// Add own user to container
+		"args": {
+			"USERNAME": "bq_mmechtel",
+			"USER_ID": "1009",
+			"GROUP_ID": "1010"
+		  }
+	},
+
+	// Run container as own user (USER_ID=1009 ; GROUP_ID=1010) with sudo permissions
 	"remoteUser": "1009:1010",
+	// "remoteUser": "root",
 
-	// Specify container name
-	"runArgs": ["--name", "devcontainer_polarbear"],
+	// There is no real way to specify the docker build tag (https://github.com/microsoft/vscode-remote-release/issues/3650)
 
-	// Configure tool-specific properties, in this case the vscode R extension.
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Change default workspace mount
+	"workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspace,type=bind",	
+	"workspaceFolder": "/workspace",
+
+	// Mount additional direcotries
+	"mounts": [
+		// tmux configuration
+		"source=${localEnv:HOME}/.tmux.conf,target=${localEnv:HOME}/.tmux.conf,type=bind,consistency=cached"
+	],
+
+	// Add vscode extensions (they will be installed to the container home directory)
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -19,19 +47,6 @@
 				"ms-python.vscode-pylance"
 			]
 		}
-	},
+	}
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-
-	// Mount workspace to /home directory instead of the default /workspaces directory
-	"workspaceMount": "source=${localWorkspaceFolder}/..,target=/home,type=bind",
-	"workspaceFolder": "/home",
-
-	// Copy users and groups to container
-	"mounts": [
-		"source=/etc/passwd,target=/etc/passwd,type=bind,consistency=cached",
-		"source=/etc/group,target=/etc/group,type=bind,consistency=cached"
-	]
 }
-
