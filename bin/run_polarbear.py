@@ -9,6 +9,7 @@ from sklearn import preprocessing, metrics
 from sklearn.linear_model import RidgeCV
 import scipy
 from scipy.io import mmread
+from copy import copy
 
 sys.path.append("bin/")
 from train_model import TranslateAE
@@ -42,6 +43,78 @@ def load_atac_file_sparse(url2, index_range):
     data_atac = data_atac.astype(int)
     data_atac_batch = mmread(url2.split(".mtx")[0] + "_barcodes_dataset.mtx").tocsr()
     return data_atac, data_atac_batch
+
+
+def load_10x_barcodes(path_x_y):
+    """
+    read cell barcodes into a list and one-hot encode batch factors
+
+    format: (ncell * batch_dim)
+    """
+    ## cell barcodes
+    barcodes = pd.read_csv(
+        os.path.join(path_x_y, "barcodes.tsv.gz"),
+        header=None,
+        delimiter="\t",
+        compression="gzip",
+    )
+    barcode_list = barcodes[0].to_list()
+    ## encode batch factor
+    ncell = len(barcode_list)
+    samples = np.array([id.split("#")[0] for id in barcode_list])
+    batch_dim = len(np.unique(samples))
+    data_batch = np.zeros(
+        shape=(ncell, batch_dim),
+        dtype=int,
+    )
+    for batch_factor, sample in enumerate(np.unique(samples)):
+        data_batch[np.where(samples == sample), batch_factor] = 1
+    data_batch = scipy.sparse.csr_matrix(data_batch)
+
+    return barcode_list, data_batch
+
+
+def load_10x_features(path_x_y):
+    """
+    load features into pandas DataFrame and filter out genes & peaks in sex chromosomes
+    format: (features * col_names)
+    """
+    # load features
+    features = pd.read_csv(
+        os.path.join(path_x_y, "features.tsv.gz"),
+        delimiter="\t",
+        compression="gzip",
+        names=["feature_id", "feature_name", "feature_type", "chromosome", "start", "end"]
+    )
+    # filter out sex chromosomes
+    supported_chr = [f"chr{i}" for i in range(1,23)]
+    features = features.loc[features.chromosome.isin(supported_chr), :]
+    # split features into RNA and ATAC
+    features_rna = features.copy().loc[features.feature_type == "Gene Expression", :]
+    features_rna.drop(columns=["feature_type"], inplace=True)
+
+    features_atac = features.copy().loc[features.feature_type == "Peaks", :]
+    features_atac.drop(columns=["feature_type"], inplace=True)
+    
+    return features_rna, features_atac
+
+
+def load_10x_matrix_sparse(path_x_y, index_rna, index_atac):
+    """
+    load combined scRNA and scATAC mtx file to sparse matrix, binarize the data and split it into separate scRNA and scATAC data
+    format: (barcodes * features)
+    """
+    file_path = os.path.join(path_x_y, "matrix.mtx.gz")
+    data_rna_atac = mmread(file_path).transpose().tocsr()
+    data_rna = data_rna_atac[:, index_rna]
+    data_rna = data_rna.astype(int)
+
+    data_atac = data_rna_atac[:, index_atac]
+    data_atac[data_atac != 0] = 1
+    data_atac = data_atac.astype(int)
+
+    assert data_rna.shape[0] == data_atac.shape[0], "Number of cells does not match between scRNA and scATAC!"
+    return data_rna, data_atac
 
 
 def pred_rna_norm(
@@ -511,6 +584,7 @@ def train_polarbear_model(
     train_test_split,
     path_x,
     path_y,
+    path_x_y,
     path_x_single,
     path_y_single,
     dispersion,
@@ -557,46 +631,74 @@ def train_polarbear_model(
 
     """
     os.system("mkdir -p " + outdir)
-    ## input peak file and filter out peaks in sex chromosomes
-    chr_annot = pd.read_csv(
-        path_y.split("snareseq")[0] + "peaks.txt", sep=":", header=None
-    )
-    chr_annot.columns = ["chr", "pos"]
-    chr_list = {}
-    for chri in chr_annot["chr"].unique():
-        if chri not in ["chrX", "chrY"]:
-            chr_list[int(chri[3:])] = [
-                i for i, x in enumerate(chr_annot["chr"]) if x == chri
-            ]
 
-    chr_list_range = []
-    for chri in chr_list.keys():
-        chr_list_range += chr_list[chri]
+    if path_x_y is not None:
+        ## load sample barcodes
+        barcode_list, data_batch = load_10x_barcodes(path_x_y)
+        data_rna_batch = copy(data_batch)
+        data_atac_batch = copy(data_batch)
 
-    ## save the list of peaks
-    chr_annot.iloc[chr_list_range].to_csv(
-        sim_url + "_peaks.txt", index=False, sep=":", header=None
-    )
+        ## load features and filter out sex chromosomes
+        features_rna, features_atac = load_10x_features(path_x_y)
 
-    # * load scRNA mtx file to sparse matrix, binarize the data; load batch info
-    # *       adultbrainfull50_rna_outer_snareseq.mtx -> data_rna
-    # *       adultbrainfull50_rna_outer_snareseq_barcodes_dataset.mtx -> data_rna_batch
-    data_rna, data_rna_batch = load_rna_file_sparse(path_x)
+        ## save the list of peaks
+        # - format:   chr10:100010308-100010612
+        features_atac.feature_id.to_csv(
+            sim_url + "_peaks.txt", index=False, header=None
+        )
 
-    # * load scATAC mtx file to sparse matrix, binarize the data; load batch info
-    # *       adultbrainfull50_atac_outer_snareseq.mtx -> data_atac
-    # *       adultbrainfull50_atac_outer_snareseq_barcodes_dataset.mtx -> data_atac_batch
-    data_atac, data_atac_batch = load_atac_file_sparse(path_y, chr_list_range)
+        ## load data and split it into RNA and ATAC
+        # - format: barcodes * features
+        data_rna, data_atac = load_10x_matrix_sparse(
+            path_x_y=path_x_y,
+            index_rna=features_rna.index,
+            index_atac=features_atac.index,
+        )
+
+    elif path_x is not None and path_y is not None:
+        ## input peak file and filter out peaks in sex chromosomes
+        # - load chromose annotation
+        chr_annot = pd.read_csv(
+            path_y.split("snareseq")[0] + "peaks.txt", sep=":", header=None
+        )
+        chr_annot.columns = ["chr", "pos"]
+        chr_list = {}
+        for chri in chr_annot["chr"].unique():
+            if chri not in ["chrX", "chrY"]:
+                chr_list[int(chri[3:])] = [
+                    i for i, x in enumerate(chr_annot["chr"]) if x == chri
+                ]
+
+        chr_list_range = []
+        for chri in chr_list.keys():
+            chr_list_range += chr_list[chri]
+
+        ## save the list of peaks
+        chr_annot.iloc[chr_list_range].to_csv(
+            sim_url + "_peaks.txt", index=False, sep=":", header=None
+        )
+
+        ## load scRNA mtx file to sparse matrix, binarize the data; load batch info
+        # - adultbrainfull50_rna_outer_snareseq.mtx -> data_rna
+        # - adultbrainfull50_rna_outer_snareseq_barcodes_dataset.mtx -> data_rna_batch
+        data_rna, data_rna_batch = load_rna_file_sparse(path_x)
+
+        ## load scATAC mtx file to sparse matrix, binarize the data; load batch info
+        # - adultbrainfull50_atac_outer_snareseq.mtx -> data_atac
+        # - adultbrainfull50_atac_outer_snareseq_barcodes_dataset.mtx -> data_atac_batch
+        data_atac, data_atac_batch = load_atac_file_sparse(path_y, chr_list_range)
+
+        ## load scRNA/scATAC barcode
+        # - adultbrainfull50_rna_outer_snareseq_barcodes.tsv -> data_rna_barcode
+        data_rna_barcode = pd.read_csv(
+            path_x.split(".mtx")[0] + "_barcodes.tsv", delimiter="\t"
+        )
+        barcode_list = data_rna_barcode["index"].to_list()
+    else:
+        assert "No data given!"
 
     ## ======================================
     ## define train, validation and test
-    # * load scRNA barcode
-    # *       adultbrainfull50_rna_outer_snareseq_barcodes.tsv -> data_rna_barcode
-    # TODO: instead of barcodes table only read in barcodes
-    data_rna_barcode = pd.read_csv(
-        path_x.split(".mtx")[0] + "_barcodes.tsv", delimiter="\t"
-    )
-    barcode_list = data_rna_barcode["index"].to_list()
 
     if train_test_split == "babel":
         # use the exact train/val/test split in BABEL
@@ -957,6 +1059,7 @@ def main(args):
         train_test_split,
         args.path_x,
         args.path_y,
+        args.path_x_y,
         args.path_x_single,
         args.path_y_single,
         dispersion,
@@ -1023,11 +1126,24 @@ if __name__ == "__main__":
         default="noatacsingle",
     )
     parser.add_argument(
-        "--path_x", type=str, help="path of scRNA snare-seq co-assay data file"
+        "--path_x",
+        type=str,
+        help="path of scRNA snare-seq co-assay data file",
+        default=None,
     )
     parser.add_argument(
-        "--path_y", type=str, help="path of scATAC snare-seq co-assay data file"
+        "--path_y",
+        type=str,
+        help="path of scATAC snare-seq co-assay data file",
+        default=None
     )
+    parser.add_argument(
+        "--path_x_y",
+        type=str,
+        nargs="*",
+        help="directory of 10x scRNA-seq and scATAC-seq co-assay data in the format of CellRanger output (barcodes.tsv ; features.tsv ; matrix.mtx)",
+        default=None,
+    ),
     parser.add_argument(
         "--nlayer",
         type=int,
