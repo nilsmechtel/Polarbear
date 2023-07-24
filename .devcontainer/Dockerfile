@@ -15,6 +15,11 @@ RUN apt-get update && \
     git \
     tmux
 
+# Install required python packages
+RUN pip install \
+    ipython \
+    black
+
 # Create a new group
 RUN groupadd -g ${GROUP_ID} ${USERNAME}
 
