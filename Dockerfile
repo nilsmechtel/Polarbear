@@ -12,11 +12,12 @@ RUN apt-key adv \
 
 # Install requirements
 # Note: swagger-spec-validator>2.7.6 requires Python3.7 but Python3.6 is installed
-RUN pip install --upgrade pip && \
-    pip install scikit-learn==0.23.2 && \
-    pip install pandas==1.1.5 && \
-    pip install neptune-client==0.15.2 && \
-    pip install swagger-spec-validator==2.7.6
+RUN pip install \
+    --upgrade pip \
+    scikit-learn==0.23.2 \
+    pandas==1.1.5 \
+    neptune-client==0.15.2 \
+    swagger-spec-validator==2.7.6
     
 # Set the working directory to /home
 WORKDIR /home
