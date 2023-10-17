@@ -17,14 +17,18 @@ else
 	path_y_single=noatacsingle
 fi
 
+## choose GPU to run model on
+device=$3
+export CUDA_VISIBLE_DEVICES=${device}
+
 ## train the model
-python ${cur_dir}/bin/run_polarbear.py --path_x ${data_dir}/adultbrainfull50_rna_outer_snareseq.mtx --path_y ${data_dir}/adultbrainfull50_atac_outer_snareseq.mtx --outdir ${cur_dir}/output_${semi_version}_gpu/ --patience 45 --path_x_single $path_x_single --path_y_single $path_y_single --train_test_split ${train_test_split} --train train
+# python ${cur_dir}/bin/run_polarbear.py --path_x ${data_dir}/adultbrainfull50_rna_outer_snareseq.mtx --path_y ${data_dir}/adultbrainfull50_atac_outer_snareseq.mtx --outdir ${cur_dir}/output_${semi_version}_gpu/ --patience 45 --path_x_single $path_x_single --path_y_single $path_y_single --train_test_split ${train_test_split} --train train
 
 ## evaluate
-#python ${cur_dir}/bin/run_polarbear.py --path_x ${data_dir}/adultbrainfull50_rna_outer_snareseq.mtx --path_y ${data_dir}/adultbrainfull50_atac_outer_snareseq.mtx --outdir ${cur_dir}/output_${semi_version}_gpu/ --patience 45 --path_x_single $path_x_single --path_y_single $path_y_single --train_test_split ${train_test_split} --train predict  --evaluate evaluate
+# python ${cur_dir}/bin/run_polarbear.py --path_x ${data_dir}/adultbrainfull50_rna_outer_snareseq.mtx --path_y ${data_dir}/adultbrainfull50_atac_outer_snareseq.mtx --outdir ${cur_dir}/output_${semi_version}_gpu/ --patience 45 --path_x_single $path_x_single --path_y_single $path_y_single --train_test_split ${train_test_split} --train predict  --evaluate evaluate
 
 ## output predictions on test set
-#python ${cur_dir}/bin/run_polarbear.py --path_x ${data_dir}/adultbrainfull50_rna_outer_snareseq.mtx --path_y ${data_dir}/adultbrainfull50_atac_outer_snareseq.mtx --outdir ${cur_dir}/output_${semi_version}_gpu/ --patience 45 --path_x_single $path_x_single --path_y_single $path_y_single --train_test_split ${train_test_split} --train predict --predict predict
+python ${cur_dir}/bin/run_polarbear.py --path_x ${data_dir}/adultbrainfull50_rna_outer_snareseq.mtx --path_y ${data_dir}/adultbrainfull50_atac_outer_snareseq.mtx --outdir ${cur_dir}/output_${semi_version}_gpu/ --patience 45 --train_test_split ${train_test_split} --train predict --predict predict
 
 ## plot pairwise comparison
 #mkdir -p ${cur_dir}/result/

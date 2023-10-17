@@ -1,0 +1,57 @@
+// For format details, see https://aka.ms/devcontainer.json
+// Tutorials available at https://code.visualstudio.com/remote/advancedcontainers/overview
+
+// Replace the following with your
+// - image name (<image_name>)
+// - your initials (<your_initials>)
+//
+// Also adjust mounted directories and vscode extensions if needed.
+{
+	// Set the name of the devcontainer (needs to be all lower case)
+	"name": "polarbear",
+
+	// Create a custom docker image (add own user with sudo rights) that is build on given base image
+	"initializeCommand": "docker build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) --build-arg USERNAME=developer -t polarbear:nm ${localWorkspaceFolder}/.devcontainer/polarbear",
+
+	// VSCODE installs a vscode-server on top of the created custom image.
+	"image": "polarbear:nm",
+	// The resulting image's name will be: "vsc-${localWorkspaceFolderBasename}-<some_specific_id>-uid"
+	// There is no real way to specify the docker build tag (https://github.com/microsoft/vscode-remote-release/issues/3650)
+
+	// Specify container name
+	"runArgs": [
+		"--name", "dev_polarbear_nm",
+		"--gpus", "all"
+	],
+
+	// Run container as own user ($UID:$GROUPS) with sudo permissions
+	"remoteUser": "developer",
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Mount workspace to user home directory instead of the default /workspaces directory
+	"workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspace,type=bind",	
+	"workspaceFolder": "/workspace",
+
+	// Mount additional directories
+	"mounts": [
+		// personal tmux configuration (optional)
+		// "source=${localEnv:HOME}/.tmux.conf,target=${localEnv:HOME}/.tmux.conf,type=bind,consistency=cached",
+		// data directory
+		"source=/raid/projects,target=/projects,type=bind,consistency=cached"
+	],
+
+	// Add vscode extensions (they will be installed to the container home directory)
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",  
+				"ms-toolsai.jupyter",  // enable Python Interactive Window (#%%)
+				"ms-python.black-formatter"
+			]
+		}
+	}
+
+}
