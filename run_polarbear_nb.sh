@@ -59,7 +59,7 @@ gene_set="/workspace/PELICAN/preprocessing/NB_PCPG/reduced_gene_set.txt"
 peak_set="/workspace/PELICAN/preprocessing/NB_PCPG/reduced_peak_set.txt"
 
 ## train the model
-python ${cur_dir}/bin/run_polarbear.py --path_x $path_x --path_y $path_y --outdir ${cur_dir}/output_nb_only-annotated/ --patience 45 --train_test_split pelican --gene_set $gene_set --peak_set $peak_set --train train --predict predict
+python ${cur_dir}/bin/run_polarbear.py --path_x $path_x --path_y $path_y --outdir ${cur_dir}/output_nb_automated-annotation/ --patience 45 --train_test_split pelican --gene_set $gene_set --peak_set $peak_set --train train --predict predict
 
 ## evaluate and output predictions on test set
 # python ${cur_dir}/bin/run_polarbear.py --path_x $path_x --path_y $path_y --outdir ${cur_dir}/output_nb_only-annotated/ --patience 45 --train_test_split pelican --gene_set $gene_set --peak_set $peak_set --train predict --predict predict
